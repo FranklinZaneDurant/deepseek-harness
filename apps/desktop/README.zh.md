@@ -43,6 +43,14 @@ Electron 根据应用 locale 选择类型化的英文或中文桌面壳文案，
 
 包事务独占持有 `$DSH_HOME/profiles/desktop/lock`，直到 pnpm 进程退出。重置保留目录及其锁，直到初始化和 Host 启动完成。共享链接在 macOS/Linux 使用目录软链接，在 Windows 使用 junction；清理只移除链接，不删除其目标。共享包使用文件系统的规范路径识别，因此 Windows 路径大小写变化不会单独触发 profile 激活。原生构建遵循 profile 中经过审查的 `allowBuilds` 列表；新安装的包如果需要构建但未在列表中获准，事务会失败。
 
+### 内置插件
+
+[`src/bundled-plugins.ts`](src/bundled-plugins.ts) 列出每个新 profile 都会获得的第三方插件。发放过程在启动准备步骤中与发布版本协调一起执行，此时后端已停止并持有包事务锁。
+
+每个待发放插件都通过内置 pnpm 按锁定的精确版本安装。只有在完整插件依赖图通过验证后，插件才加入 profile 的 bundle 列表；因此打包运行时无法满足的 peer 范围会让 profile 保持不变，插件保持休眠。
+
+profile 中的 `desktop-provisioned-plugins.json` 记录每个插件在特定运行时标识下的最终结果。已定案的插件不会再次发放，因此用户通过插件窗口移除后，直到打包版本或运行时标识变化前都不会被重新安装。包管理器失败时，会恢复安装前捕获的清单和锁文件，不记录结果，并在下次启动时重试。
+
 ## 开发
 
 `dev:desktop` 会构建当前 Host、客户端 bundle、Web 前端和 Electron 壳，把已构建的 CLI 包、私有 Desktop Host 包及其 workspace 依赖投影为一次性桌面 npm 项目，然后直接启动 Electron；这条路径不下载安装包内的 Node.js，也不从 npm 解析 dsh：
@@ -199,4 +207,5 @@ pnpm run prepare:desktop
 - Desktop 禁用 Web 的「在本地应用中打开…」操作，因为其 Host 插件依赖 HTTP 路由，而 Desktop 不提供 `webServer`。
 - 发布签名、公证、更新托管和跨上一版本的已安装产物验证需要生产发布环境。
 - 依赖包含 lifecycle script 的桌面插件，只有其包名进入桌面项目经过评审的 `allowBuilds` 策略后才能安装。
+- 发放内置插件需要访问 npm registry。首次启动无法访问时，应用会不带该插件启动，并在下次启动时重试。
 - 桌面壳与 CLI dsh 共享 `$DSH_HOME` 下的会话、设置、凭据、工作区和存储，但可执行包、插件激活、锁文件与包管理器状态彼此隔离。

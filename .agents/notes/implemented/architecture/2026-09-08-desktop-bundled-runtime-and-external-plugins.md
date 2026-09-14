@@ -34,7 +34,7 @@ The profile manifest records exact installed plugin dependencies separately from
 
 ## Transactions and upgrades
 
-First launch creates profile metadata and host links without running pnpm, preserving unrelated files. Compatible release changes or application relocation refresh links and validate enabled peers in place. Node version, platform, or architecture changes reinstall the locked plugin graph and run approved native builds.
+First launch creates profile metadata and host links, preserving unrelated files, and provisions the packaged bundled plugins through pnpm; a profile with nothing left to provision runs no pnpm. The [bundled-plugin provisioning decision](../feature/2026-09-14-desktop-bundled-plugin-provisioning.md) owns that list and its failure handling. Compatible release changes or application relocation refresh links and validate enabled peers in place. Node version, platform, or architecture changes reinstall the locked plugin graph and run approved native builds.
 
 Native canonical paths identify shared package directories. Windows launchers can vary path casing without moving the application; string equality would trigger unnecessary profile preparation. Profile cleanup explicitly unlinks every nested directory link before removing real directories. A Windows fixture under Electron 44 reproduces recursive `fs.rmSync` deleting files through a nested junction, while bundled upstream Node 24.17 preserves them. Cleanup qualification therefore includes the real Electron runtime; Node-only tests do not establish target preservation.
 

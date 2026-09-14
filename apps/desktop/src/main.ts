@@ -262,6 +262,11 @@ async function main(): Promise<void> {
       await backend.start(async () => {
         if (development === undefined) {
           await manager.applyRelease()
+          for (const result of await manager.provisionPlugins()) {
+            if (result.outcome !== 'installed') {
+              console.error(`dsh desktop: bundled plugin ${result.name}@${result.version} ${result.outcome}: ${result.detail}`)
+            }
+          }
         }
       })
       if (backend.host !== undefined) await navigateMain(applicationUrl)

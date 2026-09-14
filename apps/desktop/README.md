@@ -43,6 +43,14 @@ Reset deletes every entry in `$DSH_HOME/profiles/desktop` except the held transa
 
 Package transactions hold `$DSH_HOME/profiles/desktop/lock` exclusively through pnpm process exit. Reset preserves the directory and its lock until initialization and Host startup finish. Shared links use directory symlinks on macOS/Linux and junctions on Windows; cleanup removes links without deleting their targets. Canonical filesystem paths identify shared packages, so Windows path casing alone does not trigger profile activation. Native builds follow the profile’s reviewed `allowBuilds` list; installing a new build-requiring package without approval in that list fails the transaction.
 
+### Bundled plugins
+
+[`src/bundled-plugins.ts`](src/bundled-plugins.ts) names the third-party plugins every fresh profile receives. Provisioning runs inside the startup preparation step, beside release reconciliation, while the backend is stopped and the package transaction lock is held.
+
+Each pending plugin installs at its pinned exact version through the bundled pnpm. The plugin joins the profile bundle list only after the complete plugin graph validates, so a peer range the packaged runtime does not satisfy leaves the profile unchanged and the plugin dormant.
+
+`desktop-provisioned-plugins.json` in the profile records the settled outcome for each plugin and runtime identity. A settled plugin is never provisioned again, so removing it through the plugin window keeps it removed until the packaged version or the runtime identity changes. A package-manager failure restores the manifest and lockfile captured before the install, records no outcome, and retries at the next start.
+
 ## Develop
 
 `dev:desktop` builds the current Host, client bundles, Web frontend, and Electron shell, projects the built CLI and private Desktop Host packages with their workspace dependencies into a disposable desktop npm project, and launches Electron without downloading the packaged Node.js runtime or resolving dsh from npm:
@@ -199,4 +207,5 @@ An unpackaged Electron process uses `.desktop-build/development/project` under i
 - The Web "Open In..." action is disabled in Desktop because its host plugin requires HTTP routes; Desktop does not provide a `webServer`.
 - Release signing, notarization, update hosting, and previous-version installed-artifact qualification require the production release environment.
 - Desktop plugins with dependency lifecycle scripts are rejected unless their package appears in the desktop project's reviewed `allowBuilds` policy.
+- Provisioning a bundled plugin needs access to the npm registry. A first launch without it starts the application without that plugin and retries at the next start.
 - The desktop shell shares sessions, settings, credentials, workspaces, and storage under `$DSH_HOME` with CLI dsh, while executable packages, plugin activation, lockfiles, and package-manager state remain separate.

@@ -13,6 +13,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
   writeSync,
@@ -31,6 +32,10 @@ import {
   desktopPluginLockHash, linkDesktopHostPackages, readDesktopProfileState,
   unlinkDesktopHostPackages, validateDesktopPluginGraph, type DesktopProfileState,
 } from './profile-packages.ts'
+import {
+  BUNDLED_PLUGINS, pendingBundledPlugins, readProvisionedPlugins, writeProvisionedPlugins,
+  type BundledPlugin, type DesktopProvisionRecord, type DesktopProvisionResult,
+} from './bundled-plugins.ts'
 
 /** Desktop plugin record derived from the installed profile. */
 export interface DesktopPluginRecord {
@@ -226,10 +231,12 @@ export class DesktopProjectManager {
   /**
    * @param paths - Electron-owned package state and reserved desktop profile paths.
    * @param runtime - absolute bundled Node.js and pnpm entry paths.
+   * @param bundled - plugins this installation provisions; defaults to the packaged list.
    */
   constructor(
     readonly paths: DesktopPaths,
     readonly runtime: DesktopRuntimeExecutables,
+    readonly bundled: readonly BundledPlugin[] = BUNDLED_PLUGINS,
   ) {}
 
   /** Read the active desktop plugin inventory. */
@@ -320,6 +327,109 @@ export class DesktopProjectManager {
       await this.reconcileProfile(this.paths.profile, previous)
       return true
     })
+  }
+
+  /**
+   * Install the packaged bundled plugins into the reserved profile.
+   *
+   * This runs in the startup preparation slot, where the backend is stopped by
+   * construction, so it needs no {@link DesktopProjectHooks}. Nothing is
+   * activated until the complete plugin graph validates, and a package-manager
+   * failure restores the manifest and lockfile captured before it ran, so an
+   * offline start leaves the profile exactly as it was and retries later.
+   * @returns One result per attempted plugin; only settled results are persisted.
+   */
+  async provisionPlugins(): Promise<readonly DesktopProvisionResult[]> {
+    return this.withLock(async () => {
+      const runtime = this.currentRuntime()
+      if (!existsSync(this.paths.profile)) return []
+      const runtimeId = desktopRuntimeId(runtime)
+      const pending = pendingBundledPlugins(readProvisionedPlugins(this.paths.profile), runtimeId, this.bundled)
+      if (pending.length === 0) return []
+      const results = await this.installBundledPlugins(pending, runtime, runtimeId)
+      const settled = results.filter((result): result is DesktopProvisionRecord => result.outcome !== 'unavailable')
+      if (settled.length > 0) {
+        const replaced = new Set(settled.map(result => result.name))
+        writeProvisionedPlugins(this.paths.profile, {
+          schemaVersion: 1,
+          plugins: [
+            ...readProvisionedPlugins(this.paths.profile).plugins.filter(entry => !replaced.has(entry.name)),
+            ...settled,
+          ],
+        })
+      }
+      return results
+    })
+  }
+
+  private async installBundledPlugins(
+    pending: readonly BundledPlugin[], runtime: DesktopRuntimeDescriptor, runtimeId: string,
+  ): Promise<readonly DesktopProvisionResult[]> {
+    const profile = this.paths.profile
+    const manifestPath = join(profile, 'package.json')
+    const lockPath = join(profile, 'pnpm-lock.yaml')
+    const manifestBefore = readFileSync(manifestPath, 'utf8')
+    const lockBefore = existsSync(lockPath) ? readFileSync(lockPath, 'utf8') : undefined
+    unlinkDesktopHostPackages(profile)
+    let failure: string | undefined
+    try {
+      await this.runPnpm(profile, [
+        'add', ...pending.map(plugin => `${plugin.name}@${plugin.version}`), '--save-exact', '--ignore-scripts',
+      ])
+    } catch (error) {
+      failure = errorOf(error, 'desktop project: bundled plugin installation failed').message
+    } finally {
+      linkDesktopHostPackages(profile, this.runtime.dsh, runtime)
+    }
+    if (failure !== undefined) {
+      writeFileSync(manifestPath, manifestBefore)
+      if (lockBefore === undefined) rmSync(lockPath, { force: true })
+      else writeFileSync(lockPath, lockBefore)
+      this.discardPendingPackages()
+      return pending.map(plugin => ({
+        name: plugin.name, version: plugin.version, outcome: 'unavailable', detail: failure,
+      }))
+    }
+    const results: DesktopProvisionResult[] = []
+    const installed: DesktopPluginRecord[] = []
+    for (const plugin of pending) {
+      try {
+        installed.push({ ...inspectPlugin(profile, plugin.name), enabled: true })
+      } catch (error) {
+        results.push({
+          name: plugin.name, version: plugin.version, runtimeId, outcome: 'unusable',
+          detail: errorOf(error, 'desktop project: bundled plugin is not usable').message,
+        })
+      }
+    }
+    if (results.length > 0) {
+      await this.runPnpm(profile, ['remove', ...results.map(result => result.name), '--config.ignore-scripts=true'])
+    }
+    try {
+      validateDesktopPluginGraph(profile, this.runtime.dsh, runtime, [
+        ...profilePluginNames(profile), ...installed.map(plugin => plugin.name),
+      ])
+    } catch (error) {
+      const detail = errorOf(error, 'desktop project: bundled plugin graph is invalid').message
+      for (const plugin of installed) {
+        results.push({ name: plugin.name, version: plugin.version, runtimeId, outcome: 'incompatible', detail })
+      }
+      installed.length = 0
+    }
+    for (const plugin of installed) {
+      results.push({ name: plugin.name, version: plugin.version, runtimeId, outcome: 'installed' })
+    }
+    const activated = new Set(installed.map(plugin => plugin.name))
+    writeProfilePlugins(
+      profile,
+      pluginRecords(profile).map(plugin => activated.has(plugin.name) ? { ...plugin, enabled: true } : plugin),
+    )
+    await this.finishPackageOperation(profile)
+    return results
+  }
+
+  private discardPendingPackages(): void {
+    if (existsSync(this.pendingPackages)) unlinkSync(this.pendingPackages)
   }
 
   /** Modify the current profile while its backend is stopped; failures retain partial changes. */

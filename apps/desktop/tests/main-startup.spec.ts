@@ -14,6 +14,8 @@ const harness = await vi.hoisted(async () => {
   const hosts: FakeHost[] = []
   const handlers = new Map<string, (event: { senderFrame: { url: string } }) => unknown>()
   let pluginsEnabled = false
+  let provisioned = 0
+  let provisionedAtStart: number | undefined
   let preparing = deferred()
   let prepared = deferred()
   let hostStarted = deferred()
@@ -48,7 +50,7 @@ const harness = await vi.hoisted(async () => {
     readonly ready = deferred()
     readonly exited = deferred()
     readonly stopping = deferred()
-    readonly start = vi.fn(() => { hostStarted.resolve(); return this.ready.promise })
+    readonly start = vi.fn(() => { provisionedAtStart = provisioned; hostStarted.resolve(); return this.ready.promise })
     readonly stop = vi.fn(() => {
       this.stopping.resolve()
       this.ready.reject(new Error('child stopped'))
@@ -72,10 +74,15 @@ const harness = await vi.hoisted(async () => {
       if (event.preventDefault.mock.calls.length === 0) quitCompleted.resolve()
     }),
   })
+  const provisionPlugins = vi.fn(async () => {
+    provisioned += 1
+    return []
+  })
   return {
     windows, hosts, handlers, app, FakeWindow, FakeHost,
     dialog: { showErrorBox: vi.fn(), showMessageBox: vi.fn() },
     applyRelease: vi.fn(() => { preparing.resolve(); return prepared.promise }),
+    provisionPlugins,
     assertProfileRuntime: vi.fn(),
     canRecoverProfile: vi.fn(() => true),
     get preparing() { return preparing }, get prepared() { return prepared },
@@ -84,10 +91,14 @@ const harness = await vi.hoisted(async () => {
     nextHostStart() { hostStarted = deferred(); return hostStarted.promise },
     get pluginsEnabled() { return pluginsEnabled },
     set pluginsEnabled(value: boolean) { pluginsEnabled = value },
+    get provisioned() { return provisioned },
+    get provisionedAtStart() { return provisionedAtStart },
     reset() {
       windows.length = 0; hosts.length = 0; handlers.clear(); app.removeAllListeners()
       app.isPackaged = true
       pluginsEnabled = false
+      provisioned = 0
+      provisionedAtStart = undefined
       preparing = deferred(); prepared = deferred(); hostStarted = deferred()
       navigated = deferred(); errorPublished = deferred(); quitCompleted = deferred()
     },
@@ -108,6 +119,7 @@ vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: 'desk
 vi.mock('../src/project-manager.ts', () => ({
   DesktopProjectManager: class {
     readonly applyRelease = harness.applyRelease
+    readonly provisionPlugins = harness.provisionPlugins
     readonly assertProfileRuntime = harness.assertProfileRuntime
     canRecoverProfile = harness.canRecoverProfile
     async mutate(_mutation: unknown, hooks: { beforeChange(): Promise<void>; afterChange(): Promise<void> }) {
@@ -297,6 +309,8 @@ describe('desktop main startup', () => {
     harness.hosts[0]!.ready.resolve()
     await Promise.all([retry, secondRetry, harness.navigated.promise])
     expect(harness.applyRelease).toHaveBeenCalledTimes(1)
+    expect(harness.provisionPlugins).toHaveBeenCalledTimes(1)
+    expect(harness.provisionedAtStart).toBe(1)
     expect(harness.assertProfileRuntime).toHaveBeenCalledWith('desktop-test-profile')
     expect(harness.hosts[0]).toMatchObject({
       node: join('desktop-test-resources', 'runtime', 'node', process.platform === 'win32' ? 'node.exe' : 'node'),
@@ -316,6 +330,7 @@ describe('desktop main startup', () => {
     const project = join(harness.app.getAppPath(), '.desktop-build', 'development', 'project')
     expect(harness.hosts[0]).toMatchObject({ node: 'test-node', runtime: project, profile: project })
     expect(harness.applyRelease).not.toHaveBeenCalled()
+    expect(harness.provisionPlugins).not.toHaveBeenCalled()
     expect(harness.assertProfileRuntime).not.toHaveBeenCalled()
     harness.hosts[0]!.ready.resolve()
     await harness.navigated.promise
