@@ -32,14 +32,18 @@
   已确认内容为空并删除。处置前请先加杀软排除项或在工作区内的 `TEMP` 下运行。
 - 未执行：`pnpm run test`（全量单测）、`pnpm run test:coverage`、真实打包（`package:desktop:dir`）与
   Windows 原生清理资格检查。本次改动未在这些层面取得证据。
-- 未验证的产品事实：在**稳定版** 0.1.x 桌面包上 `@huiliyi37/dsh-office` 的发放结果。本仓库当前为 `0.1.5-rc.2`，
-  其实测 `satisfies('0.1.5-rc.2', '^0.1.0-rc.5') === false`，因此用本仓库构建的 rc 版桌面包会把该插件记为 `incompatible`。
+- 未验证的产品事实：`@diazefeng1219/dsh-office@0.1.0` 在**真实打包产物**上的发放结果。插件侧的两个阻塞已修
+  （`schemastery` 移入 peer；`dsh-tools` peer 范围放宽到 `>=0.1.0-rc.5 <0.2.0 || ^0.1.5-0`），并用工作区依赖图
+  算出的 216 个共享包验证为 PASS；但权威共享清单来自打包产物的 `desktop-runtime.json`，尚未据此复跑。
 
 ## 下一步最佳动作
 1. 处置 `windows-sign.spec.ts` 的杀软误报（加排除项或改 `TMP`），再确认该文件 7 项全绿。
 2. 用 `pnpm run package:desktop:dir` 造一个真实产物，走插件窗口与该插件做一次端到端确认。
-3. 决定 `@huiliyi37/dsh-office` 的 pin 版本策略；若坚持在 rc 版发布，需要插件作者放宽 `@deepseek-ai/dsh-tools` 的 peer 范围。
-4. 若要离线首启也具备该插件，按 Agent Note 的 Alternatives considered 评估「内置进签名运行时」路线。
+3. 插件已发布为 `@diazefeng1219/dsh-office@0.1.0`。发布后 packument 曾短暂 404（新包传播延迟），**现已恢复**：
+   `npm view @diazefeng1219/dsh-office version` → `0.1.0`，`npm pack @diazefeng1219/dsh-office@0.1.0` 可按包名下载。
+   发布的 integrity 与本地打包一致，fileCount 46。
+4. 打完包后用真实产物复跑插件仓库的 `node scripts/check-desktop-compat.mjs --runtime <产物>/resources/dsh/desktop-runtime.json`。
+5. 若要离线首启也具备该插件，按 Agent Note 的 Alternatives considered 评估「内置进签名运行时」路线。
 
 ## 常用命令
 - 全量验证：`pnpm run lint:contracts-ready && pnpm run test && pnpm run test:docs`

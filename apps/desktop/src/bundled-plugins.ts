@@ -20,7 +20,7 @@ export const DESKTOP_PROVISIONED_FILE = 'desktop-provisioned-plugins.json'
  * uninstalls the package from an existing profile.
  */
 export const BUNDLED_PLUGINS: readonly BundledPlugin[] = [
-  { name: '@huiliyi37/dsh-office', version: '0.2.2' },
+  { name: '@diazefeng1219/dsh-office', version: '0.1.0' },
 ]
 
 /**
