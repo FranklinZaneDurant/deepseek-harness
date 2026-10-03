@@ -345,6 +345,8 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-large')).resolves.toMatchObject({
       inputModalities: ['image'],
     })
+    // The saved notice confirms the browser directory refresh after the editor closes.
+    await dialog.getByText('已保存 Acme 网关 (acme-gateway)。', { exact: true }).waitFor({ timeout: 10_000 })
     await dialog.getByRole('button', { name: '编辑 Acme 网关 (acme-gateway)' }).click()
     await dialog.getByText('自定义设置').click()
     await dialog.getByRole('button', { name: '模型选项 1' }).click()
@@ -386,6 +388,10 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       await dialog.getByRole('button', { name: '保存', exact: true }).click()
       await types.waitFor({ state: 'detached' })
       await expect(scaffold.ctx.llm.resolveModelInfo('openai', 'gpt-6-astra')).resolves.toMatchObject({ inputModalities: ['text'] })
+      // The saved notice confirms the browser directory refresh after the editor closes.
+      // Reopening before it copies the previous selection into a new draft, which
+      // checkbox polling cannot correct.
+      await dialog.getByText('已保存 openai。', { exact: true }).waitFor({ timeout: 10_000 })
       await edit.click()
       await dialog.getByText('自定义设置').click()
       await dialog.getByRole('button', { name: '模型选项 1' }).click()
@@ -397,7 +403,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       const picker = page.getByRole('dialog', { name: '选择要添加的模型' })
       await picker.getByRole('button', { name: '取消全选' }).click()
       await picker.getByRole('searchbox', { name: '搜索模型' }).fill('gpt-6-astra')
-      await picker.getByRole('checkbox', { name: 'GPT-6 Astra', exact: true }).check()
+      await picker.getByRole('checkbox', { name: 'gpt-6-astra', exact: true }).check()
       await picker.getByRole('button', { name: '添加所选' }).click()
       await dialog.getByRole('button', { name: '模型选项 1' }).click()
       expect(await image.isChecked()).toBe(true)

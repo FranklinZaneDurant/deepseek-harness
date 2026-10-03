@@ -328,16 +328,21 @@ describe('QueueDock', () => {
     const header = view.getByRole('button', { name: '2 条排队消息' })
     expect(header.getAttribute('aria-expanded')).toBe('false')
     expect(document.getElementById(header.getAttribute('aria-controls')!)).toBeTruthy()
+    // Collapsed exposes the count header only: the row actions are not rendered.
+    expect(view.getAllByRole('button')).toEqual([header])
     expect(view.queryByText('one')).toBeNull()
     expect(view.queryByText('two')).toBeNull()
 
     fireEvent.click(header)
     expect(header.getAttribute('aria-expanded')).toBe('true')
+    // Expanded renders one Edit/Remove/Steer group per row, plus the header.
+    expect(view.getAllByRole('button')).toHaveLength(1 + 2 * 3)
     expect(view.getByText('one')).toBeTruthy()
     expect(view.getByText('two')).toBeTruthy()
 
     fireEvent.click(header)
     expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(view.getAllByRole('button')).toEqual([header])
     expect(view.queryByText('one')).toBeNull()
   })
 
@@ -362,6 +367,22 @@ describe('QueueDock', () => {
     expect(header).toHaveProperty('disabled', false)
     expect(header.getAttribute('aria-expanded')).toBe('false')
     expect(view.queryByText('second')).toBeNull()
+  })
+
+  it('portals a row action tooltip out of the panel, where the input card cannot cover it', () => {
+    vi.useFakeTimers()
+    try {
+      const single = snapshotWith([row('i-tip', 'queued draft')])
+      const source = liveSession(single)
+      const view = render(<QueueDock {...kitFor(single)} useSession={source.useSession} useProjection={source.useProjection} />)
+      fireEvent.mouseEnter(view.getByLabelText('删除排队消息'))
+      act(() => { vi.advanceTimersByTime(500) })
+      const tooltip = view.getByRole('tooltip')
+      expect(tooltip.textContent).toBe('删除排队消息')
+      expect(tooltip.parentElement).toBe(document.body)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps an in-flight row action visible when another item arrives', async () => {
