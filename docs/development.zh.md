@@ -11,7 +11,8 @@
 ### 前置条件
 
 - Node.js 支持 22.19+ 与 24+。CI 覆盖 22.19、24 和 26；见 [Node 引擎下限 Agent Note](../.agents/notes/implemented/process/2026-07-06-node-engine-floor.zh.md)。
-- 启用了 Corepack 的 pnpm。仓库在 `package.json` 中固定使用 `pnpm@11.7.0`；如果 `pnpm --version` 无法通过 Corepack 解析，请先运行 `corepack enable`。
+- 启用 Node.js TypeScript 类型剥离。仓库构建脚本用 tsdown 的 native 配置加载器加载 `tsdown.config.ts`，因此当 `NODE_OPTIONS` 含 `--no-experimental-strip-types` 或 Node.js 构建缺少 TypeScript 支持时会失败；`pnpm run build` 会先检查这一条件并指出原因。
+- 启用了 Corepack 的 pnpm。仓库在 `package.json` 中固定使用 `pnpm@11.28.5`；如果 `pnpm --version` 无法通过 Corepack 解析，请先运行 `corepack enable`。
 - Git 2.26 或更高版本；钩子设置会启用 Git 的 worktree 专属配置扩展。
 - 可选：一个 DeepSeek API key，用于 Web、headless 和 ACP（Agent Client Protocol）自动化 agent（智能体）演示以及真实 API 的 e2e 测试。
 
@@ -25,6 +26,8 @@
 
 ### 首次搭建
 
+pnpm 使用严格的符号链接布局，让未声明的依赖直接失败，而不是依赖提升。依赖的构建脚本必须明确列入 `pnpm-workspace.yaml` 的允许列表。
+
 在仓库根目录安装依赖：
 
 ```sh
@@ -32,6 +35,8 @@ pnpm install
 ```
 
 安装过程还会通过 `scripts/install-lefthook.mjs` 配置 worktree 本地的 Lefthook 钩子。[worktree 本地钩子 Agent Note](../.agents/notes/implemented/process/2026-07-27-worktree-local-lefthook.zh.md) 负责钩子路径的安全约定。
+
+[DevTools 前端](../packages/experimental/inspector/README.zh.md#use-this-package)通过固定版本的 npm 源码包和 Vite 在本地编译。依赖安装完成后，构建不需要网络连接或安装浏览器。workspace 与发布包的安装过程都不运行 DevTools 资源下载 hook；发布的 Inspector 包包含已构建的前端。
 
 如果依赖是从缓存恢复或 `postinstall` 被跳过而导致钩子缺失，请手动安装：
 
@@ -84,13 +89,15 @@ tsdown --env.DSH_BUILD_FACE client
 pnpm run build:web
 ```
 
+`pnpm run build --artifacts-only` 产出相同的 project 和应用产物，但只检查并编译各 compiler face 的现有包 reference。必需的 Linux 与 Windows 普通构建以及公开 `typecheck` 还检查仓库级测试和脚本 program。CI benchmark 准备阶段还对其临时 library 输出使用 `--noCheck`，由这些必需构建负责诊断；其他产物 builder 保留包检查（[理由](../.agents/notes/implemented/process/2026-10-05-pr-artifact-typechecks.zh.md)）。
+
 两次 tsdown 都匹配 `vendor/*`、`packages/*/*` 与 `apps/cli`，Host 阶段另外匹配 `apps/desktop-host`；两者都不扫描构建产物来发现 Client 包，也不维护 Host/Client 包过滤表。包内 tsdown 配置根据 `DSH_BUILD_FACE` 决定当前阶段的入口：普通 Client 插件在 Client 阶段同时生成 Node loader 与 browser bundle；`api-remotes` 通过 `hostPhase: true` 提前生成 Host 入口，再在 Client 阶段只生成 browser bundle。tsdown 只消费 `lib/types` 中由前置 tsc 发射的 JavaScript。tsdown 并发构建匹配到的 workspace 成员；`apps/desktop` 的主进程 bundle 需要从工作区 devDependencies 的 `lib/` 产物内联这些包，因此在 Host 阶段之后单独一步打 bundle（[Desktop README](../apps/desktop/README.zh.md#bundled-workspace-dependencies)）。
 
 Typert 只在 Host tsdown 中以 `tsconfig.host.json` 为种子运行。它分析 Host 类型并生成 Host 反射产物及 Host-for-Client Remote 投影；Client tsdown 不启动 Typert。`pnpm run typecheck` 因此先执行完整 Host lib 阶段，再运行 Client tsc；`pnpm run build` 继续执行 Client tsdown 和 Web 构建。
 
 `pnpm run build` 会内联根包版本、七位源码 commit，并在 Git 报告本地变化时内联 dirty 标记；调用方提供的其他 `DSH_CLIENT_*` 值也会被继承。`pnpm run build:official` 是与 CI 和 release 产物构建等价的跨平台本地命令，并省略本地 dirty 标记。每次完整构建成功后都会写入一份被 gitignore 的记录，把精确公开值与 Vite 输出及动态 client bundle 绑定；release 打包和 built Web 测试会拒绝缺少记录或被后续局部构建改动的产物。`pnpm run dev:web` 会先执行这次完整构建（`--skip-build` 则复用现有产物树），再读取一次当前版本和 Git 状态，并在本次会话的所有 watcher stage 之间共享该环境；它不会校验完整构建记录，因为 watcher stage 会重写记录覆盖的产物。
 
-静态分析和测试通过 base 的 `paths` 映射把工作区 import 解析到 `src`，且必须在干净树上通过；消费构建产物 `lib/` 的门禁显式声明该依赖。生成的 Host-for-Client Remote 声明是有意设置的例外：公共 `typecheck`、`lint` 和 `doc-typecheck` 命令会先生成这些声明，而内部 `*:contracts-ready` 脚本假定调用它的公共命令或调度器门禁已经依赖 Typert 约定生成阶段或完整构建。tsc-first 发射职责见 [ts-build-config Note](../.agents/notes/implemented/process/2026-06-17-ts-build-config.zh.md)，门禁准备约定见 [Typert Remote Agent Note](../.agents/notes/implemented/architecture/2026-08-02-typert-remote-method-calls.zh.md)。
+静态分析和测试通过 base 的 `paths` 映射把工作区 import 解析到 `src`，且必须在干净树上通过；消费构建产物 `lib/` 的门禁显式声明该依赖。生成的 Host-for-Client Remote 声明是有意设置的例外：公共 `typecheck`、`lint` 和 `doc-typecheck` 命令会先生成这些声明，而内部 `*:contracts-ready` 脚本假定调用它的公共命令或调度器门禁已经依赖 Typert 约定生成阶段或完整构建。门禁准备约定见 [Typert Remote Agent Note](../.agents/notes/implemented/architecture/2026-08-02-typert-remote-method-calls.zh.md)。
 
 业务服务在 Host 使用 `@Remote` 或 `@RemoteScope` 声明可调用方法；Host 构建生成 Host-for-Client 类型与运行时贡献，Client 的 `api-remotes` 组合加载这些贡献并挂到 `ctx.remote` 与作用域 `agentCtx.remote` namespace。两侧的生成产物、装配关系、SRC 开发回退和 Web 构建顺序见 [API Gateway](api-gateway.zh.md)。
 
@@ -131,9 +138,9 @@ vendor manifest 守卫检查 `vendor/*/src` 下的改动是否连同对应的 `v
 
 ### CI 门禁
 
-keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若干宽粒度 lane，并在受支持的 Node 版本上运行一组较小的兼容性检查。产物消费方在各自 lane 内等待一次 build。必需 benchmark 在标准 GitHub 托管 Linux 上独立运行；[benchmark 运行器决策](../.agents/notes/implemented/testing/2026-09-06-standard-hosted-benchmark-runner.zh.md)拥有路由及 job 超时。单独的真实 API 工作流按其配置的 worker 上限运行 `pnpm run test:e2e`。当前门禁和 job 清单以 [scripts/run-gates.ts](../scripts/run-gates.ts) 和工作流文件为准。
+keyless [CI 工作流](../.github/workflows/ci.yml) 将独立门禁分组到若干宽粒度 lane，并在受支持的 Node 版本上运行一组较小的兼容性检查。产物消费方在各自 lane 内等待一次 build。覆盖率分区复用按平台和运行器池隔离的文件耗时，在配置的 worker 上限内均衡工作量。必需 benchmark 在标准 GitHub 托管 Linux 上独立运行；[benchmark 运行器说明](../benchmarks/AGENTS.md)拥有路由及 job 超时。单独的真实 API 工作流按其配置的 worker 上限运行 `pnpm run test:e2e`。当前门禁和 job 清单以 [scripts/run-gates.ts](../scripts/run-gates.ts) 和工作流文件为准。
 
-不带凭据的 dsh 依赖布局检查与 dsh/vendor 打包演练仅在 `DSH_CI_FAILOVER_LINUX=selfhosted`，且事件为受信任的 master 推送或同仓库、非 fork、非 Dependabot 拉取请求时使用现有 Linux 自托管池。其余情况（包括手动触发）均使用 `ubuntu-24.04`；手动发布仍使用托管运行器。持久化存储隔离与回退限制见[发布演练运行器决策](../.agents/notes/implemented/process/2026-09-06-release-rehearsal-selfhosted.zh.md)。
+不带凭据的 dsh 依赖布局检查与 dsh/vendor 打包演练仅在 `DSH_CI_FAILOVER_LINUX=selfhosted`，且事件为受信任的 master 推送或同仓库、非 fork、非 Dependabot 拉取请求时使用现有 Linux 自托管池。其余情况（包括手动触发）均使用 `ubuntu-24.04`；手动发布仍使用托管运行器。持久化存储隔离与回退限制见[发布演练运行器说明](../.agents/notes/implemented/process/2026-07-26-ci-failover-runbook.zh.md)。
 
 ### 日常命令
 
