@@ -3,8 +3,8 @@
     {
       "type": "info",
       "title": "Manage dsh Command",
-      "message": "Add the Desktop command to your terminal.",
-      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd",
+      "message": "Add the 数智小推 command to your terminal.",
+      "detail": "数智小推 command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd",
       "buttons": [
         "Install",
         "Cancel"
@@ -15,8 +15,8 @@
     {
       "type": "info",
       "title": "Manage dsh Command",
-      "message": "The Desktop command is installed.",
-      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nCurrent dsh command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd",
+      "message": "The 数智小推 command is installed.",
+      "detail": "数智小推 command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nCurrent dsh command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd",
       "buttons": [
         "Close",
         "Repair",
@@ -28,8 +28,8 @@
     {
       "type": "info",
       "title": "Manage dsh Command",
-      "message": "The Desktop command needs repair.",
-      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd",
+      "message": "The 数智小推 command needs repair.",
+      "detail": "数智小推 command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd",
       "buttons": [
         "Close",
         "Repair",
@@ -41,8 +41,8 @@
     {
       "type": "warning",
       "title": "Manage dsh Command",
-      "message": "The Desktop command is installed.",
-      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nCurrent dsh command: C:\\Program Files\\nodejs\\dsh.cmd\n\nAnother dsh takes precedence. Remove or reorder that installation to use the Desktop command by default. You can also run the Desktop command by its full path.",
+      "message": "The 数智小推 command is installed.",
+      "detail": "数智小推 command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nCurrent dsh command: C:\\Program Files\\nodejs\\dsh.cmd\n\nAnother dsh takes precedence. Remove or reorder that installation to use the 数智小推 command by default. You can also run the 数智小推 command by its full path.",
       "buttons": [
         "Close",
         "Repair",
@@ -54,8 +54,8 @@
     {
       "type": "info",
       "title": "Manage dsh Command",
-      "message": "Add the Desktop command to your terminal.",
-      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nYour shell command could not be verified. An alias or another dsh installation may take precedence.",
+      "message": "Add the 数智小推 command to your terminal.",
+      "detail": "数智小推 command: C:\\Users\\user\\AppData\\Local\\Programs\\数智小推\\resources\\runtime\\cli\\bin\\dsh.cmd\n\nYour shell command could not be verified. An alias or another dsh installation may take precedence.",
       "buttons": [
         "Install",
         "Cancel"

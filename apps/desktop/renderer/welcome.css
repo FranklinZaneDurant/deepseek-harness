@@ -96,7 +96,7 @@ body {
 .brand {
   display: block;
   flex: none;
-  width: 100%;
+  width: auto;
   height: 40px;
   user-select: none;
   -webkit-user-drag: none;

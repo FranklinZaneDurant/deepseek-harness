@@ -1,5 +1,5 @@
-DeepSeek Harness is unavailable
+数智小推 is unavailable
 The application could not start or stopped unexpectedly.
-Another DSH instance (such as dsh web or the desktop app) is running. They cannot start at the same time. Quit the other running DSH instance, then restart.
+Another 数智小推 instance (such as dsh web or the desktop app) is running. They cannot start at the same time. Quit the other running 数智小推 instance, then restart.
 Exit
 Restart
